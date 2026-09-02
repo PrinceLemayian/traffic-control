@@ -36,3 +36,30 @@ local function make_road(def)
 		end
 	end)
 end
+
+-- ── Scheduling logic ─────────────────────────────────────────
+
+local function compute_score(s)
+	return s.queue * CONGESTION_W + s.waiting * FAIRNESS_W
+end
+
+local function choose_green(states)
+	local fi, fw = nil, -1
+	for i, s in ipairs(states) do
+		if s.waiting >= STARVATION_LIMIT and s.waiting > fw then
+			fw, fi = s.waiting, i
+		end
+	end
+	if fi then
+		return fi, true
+	end
+
+	local bi, bs = 1, -math.huge
+	for i, s in ipairs(states) do
+		local sc = compute_score(s)
+		if sc > bs then
+			bs, bi = sc, i
+		end
+	end
+	return bi, false
+end
