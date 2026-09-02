@@ -100,3 +100,61 @@ local function log_summary(counts)
 	end
 	print(hr("═"))
 end
+
+-- ── Main scheduling loop ──────────────────────────────────────
+
+local cos = {}
+local green_for = {}
+local counts = {}
+
+for i, def in ipairs(ROADS) do
+	cos[i] = make_road(def)
+	green_for[i] = false
+	counts[def.name] = 0
+end
+
+print("\n" .. hr("═"))
+print("  ADAPTIVE NAIROBI TRAFFIC CONTROL  —  SIMULATION")
+print(hr("═"))
+
+for cycle = 1, SIM_CYCLES do
+	-- Resume every living coroutine; collect states
+	local active = {}
+	for i, co in ipairs(cos) do
+		if coroutine.status(co) ~= "dead" then
+			local ok, result = coroutine.resume(co, green_for[i])
+			if ok then
+				active[#active + 1] = { state = result, ci = i }
+			else
+				print(string.format("  [ERROR] %s: %s", ROADS[i].name, result))
+			end
+		end
+	end
+
+	if #active == 0 then
+		print("\n  All road coroutines have terminated — exiting.")
+		break
+	end
+
+	-- Build plain state list for choose_green
+	local states = {}
+	for _, a in ipairs(active) do
+		states[#states + 1] = a.state
+	end
+
+	-- Pick the winner
+	local wp, forced = choose_green(states)
+	local winner_ci = active[wp].ci
+	local winner_name = active[wp].state.name
+
+	counts[winner_name] = counts[winner_name] + 1
+
+	-- Log and prepare next cycle
+	log_cycle(cycle, states, wp, forced)
+	for i = 1, #cos do
+		green_for[i] = false
+	end
+	green_for[winner_ci] = true
+end
+
+log_summary(counts)
